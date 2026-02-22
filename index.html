@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Masjid-e-Kausar | Kausar Bagh, Pune</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        arabic: ['"Amiri"', 'serif'],
+                    },
+                    colors: {
+                        emerald: { 50: '#ecfdf5', 100: '#d1fae5', 500: '#10b981', 600: '#059669', 700: '#047857', 900: '#064e3b' },
+                        amber: { 50: '#fffbeb', 100: '#fef3c7', 500: '#f59e0b' },
+                        slate: { 800: '#1e293b', 900: '#0f172a' }
+                    },
+                    borderRadius: { '4xl': '2.5rem' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
+        .glass-panel-dark { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .hero-parallax {
+            background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.8)), url('https://raw.githubusercontent.com/Adnansayed2754/Images/main/sampleMosque.jpeg');
+            background-attachment: fixed; background-position: center; background-size: cover;
+        }
+        .pulse-ring { animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <script>
+        // Define Alpine logic BEFORE loading the script to prevent ReferenceErrors
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('mosqueApp', () => ({
+                scrolled: false,
+                mobileMenuOpen: false,
+                hijriDate: '',
+                salahList: [],
+                nextPrayer: null,
+                timeUntilNext: '',
+                dailyDua: null,
+                loadingAnnouncements: true,
+                filteredAnnouncements: [],
+                
+                sheetUrl: 'https://docs.google.com/spreadsheets/d/1ZZ_sof5kBwd_NuuQdFA6x38uwAWSqVdw2VkAuCcQGm4/export?format=csv&gid=586902215',
+
+                async init() {
+                    window.addEventListener('scroll', () => {
+                        this.scrolled = window.pageYOffset > 20;
+                    });
+
+                    await this.fetchSalah();
+                    await this.fetchDua();
+                    await this.fetchAnnouncements();
+                    
+                    setInterval(() => this.updateTimer(), 1000);
+                    
+                    setTimeout(() => { 
+                        if (typeof AOS !== 'undefined') AOS.init({ duration: 800, once: true }); 
+                    }, 500);
+                },
+
+                async fetchSalah() {
+                    try {
+                        const res = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Pune&country=India&method=1');
+                        const json = await res.json();
+                        const timings = json.data.timings;
+                        
+                        this.hijriDate = `${json.data.date.hijri.day} ${json.data.date.hijri.month.en} ${json.data.date.hijri.year} AH`;
+                        
+                        const keys = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                        this.salahList = keys.map(name => {
+                            const adhan = timings[name];
+                            return {
+                                name: name,
+                                time24: adhan,
+                                timeFormatted: this.t12(adhan),
+                                jamaatFormatted: this.addMins(adhan, 15)
+                            };
+                        });
+                        this.updateTimer();
+                    } catch (e) { console.error("Salah fetch error", e); }
+                },
+
+                async fetchDua() {
+                    try {
+                        const randomId = Math.floor(Math.random() * 6236) + 1;
+                        const [ar, en] = await Promise.all([
+                            fetch(`https://api.alquran.cloud/v1/ayah/${randomId}/ar.alafasy`),
+                            fetch(`https://api.alquran.cloud/v1/ayah/${randomId}/en.asad`)
+                        ]);
+                        const arJ = await ar.json();
+                        const enJ = await en.json();
+                        this.dailyDua = {
+                            arabic: arJ.data.text,
+                            english: enJ.data.text,
+                            surah: enJ.data.surah.englishName,
+                            ayahNumber: enJ.data.numberInSurah
+                        };
+                    } catch (e) { 
+                        console.error("Dua error", e);
+                        this.dailyDua = { arabic: "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا", english: "For indeed, with hardship [will be] ease.", surah: "Ash-Sharh", ayahNumber: "5" };
+                    }
+                },
+
+                async fetchAnnouncements() {
+                    this.loadingAnnouncements = true;
+                    Papa.parse(this.sheetUrl, {
+                        download: true,
+                        header: true,
+                        complete: (results) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            this.filteredAnnouncements = results.data
+                                .filter(row => {
+                                    const keys = Object.keys(row);
+                                    const title = row[keys[1]];
+                                    const expiryRaw = row[keys[3]];
+                                    
+                                    if (!title || title.trim() === "") return false;
+                                    if (!expiryRaw || expiryRaw.trim() === "") return true;
+
+                                    const expiryDate = new Date(expiryRaw);
+                                    if (isNaN(expiryDate.getTime())) return true;
+                                    
+                                    expiryDate.setHours(23, 59, 59, 999);
+                                    return expiryDate >= today;
+                                })
+                                .map(row => {
+                                    const keys = Object.keys(row);
+                                    return {
+                                        date: row[keys[0]] ? new Date(row[keys[0]]).toLocaleDateString() : 'Recent',
+                                        title: row[keys[1]],
+                                        description: row[keys[2]]
+                                    }
+                                })
+                                .reverse();
+                            this.loadingAnnouncements = false;
+                        },
+                        error: () => { this.loadingAnnouncements = false; }
+                    });
+                },
+
+                updateTimer() {
+                    if (!this.salahList.length) return;
+                    const now = new Date();
+                    const nowMin = now.getHours() * 60 + now.getMinutes();
+                    
+                    let next = this.salahList.find(p => {
+                        const [h, m] = p.time24.split(':').map(Number);
+                        return (h * 60 + m) > nowMin;
+                    });
+
+                    if (!next) {
+                        next = { ...this.salahList[0], isTomorrow: true };
+                    }
+                    
+                    this.nextPrayer = next;
+
+                    const [nh, nm] = next.time24.split(':').map(Number);
+                    let diff = (nh * 60 + nm) - nowMin;
+                    if (next.isTomorrow) diff += 1440;
+
+                    const h = Math.floor(diff / 60);
+                    const m = diff % 60;
+                    const s = 60 - now.getSeconds();
+                    this.timeUntilNext = `${h}h ${m}m ${s === 60 ? 0 : s}s`;
+                },
+
+                isNextPrayer(name) {
+                    return this.nextPrayer && this.nextPrayer.name === name;
+                },
+
+                t12(t24) {
+                    let [h, m] = t24.split(':');
+                    h = parseInt(h);
+                    const suffix = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12 || 12;
+                    return `${h}:${m} ${suffix}`;
+                },
+
+                addMins(t24, mins) {
+                    let [h, m] = t24.split(':').map(Number);
+                    m += mins;
+                    if (m >= 60) {
+                        h = (h + 1) % 24;
+                        m -= 60;
+                    }
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    return this.t12(`${pad(h)}:${pad(m)}`);
+                }
+            }));
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body class="bg-slate-50 text-slate-900 font-sans antialiased" x-data="mosqueApp()" x-cloak>
+
+    <nav class="fixed w-full z-50 glass-panel transition-all duration-300" :class="{ 'py-2 shadow-md': scrolled, 'py-4': !scrolled }">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xl shadow-lg">
+                    <i class="fa-solid fa-mosque"></i>
+                </div>
+                <span class="font-bold text-xl md:text-2xl text-emerald-900">Masjid-e-Kausar</span>
+            </div>
+            
+            <div class="hidden lg:flex items-center space-x-8">
+                <a href="#prayers" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Salah Times</a>
+                <a href="#announcements" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Announcements</a>
+                <a href="#gallery" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Gallery</a>
+                <a href="#donate" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-full font-semibold transition-all">Donate</a>
+            </div>
+
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden text-emerald-900">
+                <i class="fa-solid fa-bars text-2xl"></i>
+            </button>
+        </div>
+        
+        <div x-show="mobileMenuOpen" @click.away="mobileMenuOpen = false" class="lg:hidden bg-white border-t p-4 space-y-4 shadow-xl">
+            <a href="#prayers" @click="mobileMenuOpen = false" class="block font-medium">Salah Times</a>
+            <a href="#announcements" @click="mobileMenuOpen = false" class="block font-medium">Announcements</a>
+            <a href="#donate" @click="mobileMenuOpen = false" class="block font-medium">Donate</a>
+        </div>
+    </nav>
+
+    <header class="hero-parallax min-h-[85vh] flex items-center pt-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid lg:grid-cols-2 gap-12 items-center">
+            <div data-aos="fade-right">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel-dark text-emerald-100 mb-6">
+                    <i class="fa-solid fa-calendar-check text-amber-400"></i>
+                    <span x-text="hijriDate || 'Loading Hijri Date...'"></span>
+                </div>
+                <h1 class="text-5xl md:text-7xl font-bold text-white mb-6">Masjid-e-Kausar</h1>
+                <p class="text-lg text-slate-200 mb-8 max-w-lg">Serving the Kausar Bagh community with faith, unity, and peace.</p>
+                <a href="#prayers" class="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-full font-bold shadow-lg inline-block transition-all">Today's Prayer Schedule</a>
+            </div>
+
+            <div data-aos="fade-up" class="lg:ml-auto w-full max-w-md">
+                <div class="glass-panel-dark rounded-4xl p-8 border border-white/10 shadow-2xl text-center">
+                    <h3 class="text-emerald-400 font-bold uppercase text-xs tracking-widest mb-4">Upcoming Prayer</h3>
+                    <template x-if="nextPrayer">
+                        <div>
+                            <div class="text-5xl font-bold text-white mb-2" x-text="nextPrayer.name"></div>
+                            <div class="text-2xl text-emerald-100 mb-4">
+                                Jamaat at <span class="font-bold text-white" x-text="nextPrayer.jamaatFormatted"></span>
+                            </div>
+                            <div class="inline-block px-6 py-2 rounded-full bg-emerald-500/20 text-emerald-300 font-medium pulse-ring">
+                                Adhan in <span x-text="timeUntilNext"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!nextPrayer">
+                        <div class="py-10"><i class="fa-solid fa-spinner fa-spin text-3xl text-emerald-500"></i></div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-24">
+
+        <section id="prayers">
+            <div class="text-center mb-12" data-aos="fade-up">
+                <h2 class="text-4xl font-bold text-slate-900 mb-2">Salah Timings</h2>
+                <p class="text-slate-500">Kausar Bagh, Pune (15-min Jamaat Offset)</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" data-aos="fade-up">
+                <template x-for="prayer in salahList" :key="prayer.name">
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center transition-all hover:shadow-md"
+                         :class="{ 'ring-2 ring-emerald-500 bg-emerald-50': isNextPrayer(prayer.name) }">
+                        <h3 class="text-xl font-bold text-slate-900 mb-4" x-text="prayer.name"></h3>
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-slate-50 rounded-xl p-3">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Adhan</span>
+                                <span class="text-lg font-bold text-slate-700" x-text="prayer.timeFormatted"></span>
+                            </div>
+                            <div class="bg-emerald-600 rounded-xl p-3 text-white">
+                                <span class="text-[10px] uppercase font-bold text-emerald-200 block mb-1">Jamaat</span>
+                                <span class="text-lg font-bold" x-text="prayer.jamaatFormatted"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <section id="dua">
+            <div class="bg-slate-900 rounded-4xl p-10 md:p-16 text-white text-center relative overflow-hidden shadow-2xl" data-aos="zoom-in">
+                <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10"></div>
+                <template x-if="dailyDua">
+                    <div class="relative z-10">
+                        <span class="text-emerald-400 font-bold uppercase tracking-widest text-xs mb-8 block">Daily Quranic Verse</span>
+                        <p class="font-arabic text-3xl md:text-5xl mb-8 leading-relaxed" x-text="dailyDua.arabic"></p>
+                        <p class="text-xl text-slate-300 italic mb-8" x-text="'&ldquo;' + dailyDua.english + '&rdquo;'"></p>
+                        <div class="text-emerald-500 font-medium" x-text="dailyDua.surah + ' - Ayah ' + dailyDua.ayahNumber"></div>
+                    </div>
+                </template>
+                <template x-if="!dailyDua">
+                    <div class="py-12"><i class="fa-solid fa-circle-notch fa-spin text-3xl text-emerald-500"></i></div>
+                </template>
+            </div>
+        </section>
+
+        <section id="announcements">
+            <div class="mb-10" data-aos="fade-up">
+                <h2 class="text-4xl font-bold text-slate-900">Announcements</h2>
+                <p class="text-slate-500 mt-2">Latest community noticeboard.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <template x-for="(item, index) in filteredAnnouncements" :key="index">
+                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 hover:border-emerald-300 transition-all" data-aos="fade-up">
+                        <div class="flex justify-between items-start mb-6">
+                            <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-bullhorn"></i>
+                            </div>
+                            <span class="text-xs font-bold text-slate-400" x-text="item.date"></span>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-3" x-text="item.title"></h3>
+                        <p class="text-slate-600 text-sm leading-relaxed" x-text="item.description"></p>
+                    </div>
+                </template>
+                <template x-if="filteredAnnouncements.length === 0 && !loadingAnnouncements">
+                    <div class="col-span-full py-16 text-center bg-slate-100 rounded-4xl">
+                        <p class="text-slate-500 font-medium">No active announcements.</p>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <section id="gallery">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold text-slate-900">Masjid Gallery</h2>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="rounded-3xl overflow-hidden aspect-square"><img src="https://images.unsplash.com/photo-1590076215667-875d4ef2d97e?q=80&w=600" class="w-full h-full object-cover"></div>
+                <div class="rounded-3xl overflow-hidden aspect-square md:col-span-2"><img src="https://images.unsplash.com/photo-1542816417-0983c9c9ad53?q=80&w=800" class="w-full h-full object-cover"></div>
+                <div class="rounded-3xl overflow-hidden aspect-square"><img src="https://images.unsplash.com/photo-1564683214964-67f7fa2ff862?q=80&w=600" class="w-full h-full object-cover"></div>
+                <div class="rounded-3xl overflow-hidden aspect-square"><img src="https://images.unsplash.com/photo-1604015697669-e09fa496e1b6?q=80&w=600" class="w-full h-full object-cover"></div>
+            </div>
+        </section>
+
+        <section id="donate" class="bg-emerald-600 rounded-4xl p-10 md:p-16 text-white flex flex-col lg:flex-row gap-12 items-center">
+            <div class="lg:w-2/3">
+                <h2 class="text-4xl font-bold mb-6">Support Our Mission</h2>
+                <p class="text-emerald-50 mb-8 text-lg">Invest in the house of Allah. Your contributions maintain our facilities.</p>
+                <div class="flex items-center gap-4 bg-white/10 p-4 rounded-2xl border border-white/20">
+                    <i class="fa-solid fa-university text-2xl"></i>
+                    <div>
+                        <div class="text-xs uppercase font-bold opacity-70">UPI ID</div>
+                        <div class="text-xl font-bold">masjidekausar@upi</div>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:w-1/3 bg-white p-6 rounded-3xl text-slate-900 text-center">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=masjidekausar@upi&pn=Masjid-e-Kausar" class="w-full mb-4 rounded-xl">
+                <p class="text-sm font-bold">Scan to Donate</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-900 py-12 text-slate-400 text-center">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>&copy; 2026 Masjid-e-Kausar, Pune.</p>
+        </div>
+    </footer>
+</body>
+</html>
