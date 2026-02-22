@@ -60,7 +60,8 @@
                 loadingAnnouncements: true,
                 filteredAnnouncements: [],
                 
-                sheetUrl: 'https://docs.google.com/spreadsheets/d/1ZZ_sof5kBwd_NuuQdFA6x38uwAWSqVdw2VkAuCcQGm4/export?format=csv&gid=586902215',
+                // Updated CSV link for published sheet
+                sheetUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9m6xfmM4y2_amr58ijFGeZpwpGN92vCAIxVk4Bj-VeUaTLGe9yEu8JhFJsBrAQ4DM59cxUsB2ten4/pub?gid=586902215&single=true&output=csv',
 
                 async init() {
                     window.addEventListener('scroll', () => this.scrolled = window.pageYOffset > 20);
@@ -86,7 +87,6 @@
                         }));
                         this.updateTimer();
                     } catch (e) {
-                        // Fallback static times if API blocked
                         this.salahList = [
                             { name: 'Fajr', time24: '05:25', timeFormatted: '5:25 AM', jamaatFormatted: '5:40 AM' },
                             { name: 'Dhuhr', time24: '12:44', timeFormatted: '12:44 PM', jamaatFormatted: '12:59 PM' },
@@ -125,8 +125,8 @@
                             this.filteredAnnouncements = results.data
                                 .filter(row => {
                                     const vals = Object.values(row);
-                                    const title = vals[1];
-                                    const expiry = vals[3];
+                                    const title = vals[1]; // Column B: Title
+                                    const expiry = vals[3]; // Column D: Expiry
                                     if (!title || title.trim() === "") return false;
                                     if (!expiry) return true;
                                     const expDate = new Date(expiry);
@@ -134,10 +134,15 @@
                                 })
                                 .map(row => {
                                     const vals = Object.values(row);
-                                    return { date: vals[0], title: vals[1], description: vals[2] };
+                                    return { 
+                                        date: vals[0] ? new Date(vals[0]).toLocaleDateString() : 'Update', 
+                                        title: vals[1], 
+                                        description: vals[2] 
+                                    };
                                 }).reverse();
                             this.loadingAnnouncements = false;
-                        }
+                        },
+                        error: () => { this.loadingAnnouncements = false; }
                     });
                 },
 
@@ -188,19 +193,20 @@
                 <span class="font-bold text-xl text-emerald-900 tracking-tight">Masjid-e-Kausar</span>
             </div>
             <div class="hidden lg:flex items-center space-x-8">
-                <a href="#prayers" class="text-slate-700 hover:text-emerald-600 font-medium">Salah Times</a>
-                <a href="#ramadan" class="text-emerald-600 font-bold flex items-center gap-1"><i class="fa-solid fa-moon"></i> Ramadan</a>
-                <a href="#announcements" class="text-slate-700 hover:text-emerald-600 font-medium">Noticeboard</a>
-                <a href="#gallery" class="text-slate-700 hover:text-emerald-600 font-medium">Gallery</a>
+                <a href="#prayers" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Salah Times</a>
+                <a href="#ramadan" class="text-emerald-600 font-bold flex items-center gap-1 transition-opacity hover:opacity-80"><i class="fa-solid fa-moon"></i> Ramadan</a>
+                <a href="#announcements" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Noticeboard</a>
+                <a href="#gallery" class="text-slate-700 hover:text-emerald-600 font-medium transition-colors">Gallery</a>
                 <a href="#donate" class="bg-emerald-600 text-white px-6 py-2.5 rounded-full font-bold shadow-md hover:bg-emerald-700 transition-all">Donate</a>
             </div>
-            <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden text-emerald-900 text-2xl"><i class="fa-solid fa-bars"></i></button>
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="lg:hidden text-emerald-900 text-2xl px-2"><i class="fa-solid fa-bars"></i></button>
         </div>
-        <div x-show="mobileMenuOpen" class="lg:hidden bg-white border-t p-4 space-y-4">
-            <a href="#prayers" @click="mobileMenuOpen = false" class="block font-medium">Salah Times</a>
-            <a href="#ramadan" @click="mobileMenuOpen = false" class="block font-bold text-emerald-600">Ramadan 2026</a>
-            <a href="#announcements" @click="mobileMenuOpen = false" class="block font-medium">Noticeboard</a>
-            <a href="#donate" @click="mobileMenuOpen = false" class="block font-medium">Donate</a>
+        <div x-show="mobileMenuOpen" @click.away="mobileMenuOpen = false" class="lg:hidden bg-white border-t p-4 space-y-4 shadow-xl">
+            <a href="#prayers" @click="mobileMenuOpen = false" class="block font-medium px-2 py-1">Salah Times</a>
+            <a href="#ramadan" @click="mobileMenuOpen = false" class="block font-bold text-emerald-600 px-2 py-1">Ramadan 2026</a>
+            <a href="#announcements" @click="mobileMenuOpen = false" class="block font-medium px-2 py-1">Noticeboard</a>
+            <a href="#gallery" @click="mobileMenuOpen = false" class="block font-medium px-2 py-1">Gallery</a>
+            <a href="#donate" @click="mobileMenuOpen = false" class="block font-bold text-emerald-700 px-2 py-1 underline">Donate</a>
         </div>
     </nav>
 
@@ -269,6 +275,28 @@
             </div>
         </section>
 
+        <!-- New Dua of the Day Section -->
+        <section id="dua-reminder" class="bg-emerald-900 rounded-4xl p-10 md:p-16 text-white text-center relative overflow-hidden shadow-2xl">
+            <div class="absolute inset-0 opacity-10 flex items-center justify-center pointer-events-none">
+                <i class="fa-solid fa-mosque text-[20rem]"></i>
+            </div>
+            <div class="relative z-10 max-w-3xl mx-auto">
+                <span class="text-gold-400 font-bold uppercase tracking-widest text-xs mb-8 block">Dua of the Day</span>
+                <template x-if="dailyDua">
+                    <div>
+                        <p class="font-arabic text-4xl md:text-5xl mb-10 leading-relaxed" x-text="dailyDua.arabic"></p>
+                        <p class="text-xl text-emerald-100 italic mb-6 leading-relaxed" x-text="'&ldquo;' + dailyDua.english + '&rdquo;'"></p>
+                        <div class="inline-block px-4 py-1.5 rounded-full bg-emerald-800/50 text-emerald-400 text-sm font-bold border border-emerald-700">
+                            Surah <span x-text="dailyDua.surah"></span> : Ayah <span x-text="dailyDua.ayahNumber"></span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!dailyDua">
+                    <p class="text-emerald-300">Loading spiritual reminder...</p>
+                </template>
+            </div>
+        </section>
+
         <!-- Ramadan Section -->
         <section id="ramadan" class="ramadan-card rounded-4xl p-10 md:p-20 text-white relative overflow-hidden shadow-2xl">
             <div class="absolute top-0 right-0 w-64 h-64 bg-gold-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -315,11 +343,14 @@
                     <h2 class="text-4xl font-black text-slate-900">Community Noticeboard</h2>
                     <p class="text-slate-500 mt-2">Latest news and upcoming events from your Masjid.</p>
                 </div>
-                <a href="#" class="hidden md:block text-emerald-600 font-bold hover:underline">View All News</a>
+                <div class="hidden md:flex gap-2">
+                    <span class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span class="text-emerald-600 font-bold text-sm uppercase">Live Updates</span>
+                </div>
             </div>
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <template x-for="(item, index) in filteredAnnouncements" :key="index">
-                    <div class="bg-white rounded-4xl p-8 shadow-sm border border-slate-100 hover:shadow-2xl hover:border-emerald-200 transition-all">
+                    <div class="bg-white rounded-4xl p-8 shadow-sm border border-slate-100 hover:shadow-2xl hover:border-emerald-200 transition-all flex flex-col">
                         <div class="flex justify-between items-center mb-6">
                             <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
                                 <i class="fa-solid fa-bullhorn"></i>
@@ -332,6 +363,11 @@
                 </template>
                 <template x-if="loadingAnnouncements">
                     <div class="col-span-full py-20 text-center"><i class="fa-solid fa-circle-notch fa-spin text-4xl text-emerald-500"></i></div>
+                </template>
+                <template x-if="!loadingAnnouncements && filteredAnnouncements.length === 0">
+                    <div class="col-span-full py-16 text-center bg-white rounded-4xl border border-dashed border-slate-300">
+                        <p class="text-slate-400 font-medium">No active announcements at the moment.</p>
+                    </div>
                 </template>
             </div>
         </section>
@@ -367,14 +403,14 @@
         <!-- Donation Section -->
         <section id="donate" class="bg-white rounded-4xl p-10 md:p-20 shadow-2xl border border-slate-100 flex flex-col lg:flex-row gap-16 items-center">
             <div class="lg:w-1/2">
-                <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-6">Sadaqah & Zakat</h2>
-                <p class="text-lg text-slate-600 mb-10 leading-relaxed">Your generous contributions help us maintain the masjid facilities and support community welfare programs. Every rupee counts towards building your home in Akhirah.</p>
+                <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-6 text-center lg:text-left">Sadaqah & Zakat</h2>
+                <p class="text-lg text-slate-600 mb-10 leading-relaxed text-center lg:text-left">Your generous contributions help us maintain the masjid facilities and support community welfare programs. Every rupee counts towards building your home in Akhirah.</p>
                 <div class="grid grid-cols-2 gap-4 mb-8">
-                    <div class="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+                    <div class="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 flex flex-col items-center lg:items-start">
                         <i class="fa-solid fa-faucet-drip text-emerald-600 text-2xl mb-4"></i>
                         <h4 class="font-bold text-slate-800">Maintenance</h4>
                     </div>
-                    <div class="bg-gold-50 p-6 rounded-3xl border border-gold-100">
+                    <div class="bg-gold-50 p-6 rounded-3xl border border-gold-100 flex flex-col items-center lg:items-start">
                         <i class="fa-solid fa-graduation-cap text-gold-600 text-2xl mb-4"></i>
                         <h4 class="font-bold text-slate-800">Education</h4>
                     </div>
@@ -385,7 +421,7 @@
                     <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=masjidekausar@upi&pn=Masjid-e-Kausar" class="w-full rounded-2xl">
                 </div>
                 <div class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Scan to Donate via UPI</div>
-                <div class="text-2xl font-black text-emerald-700">masjidekausar@upi</div>
+                <div class="text-2xl font-black text-emerald-700 break-all">masjidekausar@upi</div>
             </div>
         </section>
 
@@ -400,19 +436,24 @@
                     <p class="text-slate-600 mb-10">Located in the heart of Kausar Bagh, our doors are open for all five daily prayers.</p>
                     <div class="space-y-6">
                         <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0"><i class="fa-solid fa-location-dot"></i></div>
+                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"><i class="fa-solid fa-location-dot"></i></div>
                             <div>
                                 <h4 class="font-bold text-slate-900">Address</h4>
-                                <p class="text-slate-500">Kausar Bagh, Kondhwa, Pune, MH 411048</p>
+                                <p class="text-slate-500 text-sm">Masjid-e-Kausar, Kausar Bagh, Kondhwa, Pune, MH 411048</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0"><i class="fa-solid fa-phone"></i></div>
+                            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"><i class="fa-solid fa-phone"></i></div>
                             <div>
                                 <h4 class="font-bold text-slate-900">Contact</h4>
-                                <p class="text-slate-500">+91 20 2683 0000</p>
+                                <p class="text-slate-500 text-sm">+91 20 2683 0000</p>
                             </div>
                         </div>
+                    </div>
+                    <div class="mt-10">
+                        <a href="https://maps.app.goo.gl/uP9fREmD7AAbH3Fk6" target="_blank" class="inline-flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-black transition-colors">
+                            <i class="fa-solid fa-diamond-turn-right"></i> Open in Maps
+                        </a>
                     </div>
                 </div>
             </div>
@@ -426,16 +467,16 @@
             <div class="col-span-2">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center"><i class="fa-solid fa-mosque"></i></div>
-                    <span class="font-bold text-2xl text-white">Masjid-e-Kausar</span>
+                    <span class="font-bold text-2xl text-white tracking-tight">Masjid-e-Kausar</span>
                 </div>
-                <p class="max-w-sm">Dedicated to fostering a spiritual and educational environment for the Muslim community in Pune.</p>
+                <p class="max-w-sm leading-relaxed">Dedicated to fostering a spiritual and educational environment for the Muslim community in Pune. Join us for prayers and community gatherings.</p>
             </div>
             <div>
-                <h4 class="text-white font-bold mb-6">Links</h4>
+                <h4 class="text-white font-bold mb-6">Navigation</h4>
                 <ul class="space-y-4">
-                    <li><a href="#prayers" class="hover:text-emerald-500">Salah Times</a></li>
-                    <li><a href="#announcements" class="hover:text-emerald-500">Noticeboard</a></li>
-                    <li><a href="#donate" class="hover:text-emerald-500">Donate</a></li>
+                    <li><a href="#prayers" class="hover:text-emerald-500 transition-colors">Salah Times</a></li>
+                    <li><a href="#announcements" class="hover:text-emerald-500 transition-colors">Noticeboard</a></li>
+                    <li><a href="#donate" class="hover:text-emerald-500 transition-colors">Donate</a></li>
                 </ul>
             </div>
             <div>
@@ -443,7 +484,7 @@
                 <div class="flex gap-4">
                     <a href="#" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-emerald-600 transition-all"><i class="fa-brands fa-facebook-f"></i></a>
                     <a href="#" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-emerald-600 transition-all"><i class="fa-brands fa-instagram"></i></a>
-                    <a href="#" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-emerald-600 transition-all"><i class="fa-brands fa-youtube"></i></a>
+                    <a href="#" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-emerald-600 transition-all"><i class="fa-brands fa-whatsapp"></i></a>
                 </div>
             </div>
         </div>
